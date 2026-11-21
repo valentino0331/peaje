@@ -12,10 +12,17 @@ export function useWebSocket(url: string = '/ws/detection') {
   const reconnectTimeoutRef = useRef<any>(null);
 
   const connect = useCallback(() => {
-    // Protocolo ws o wss dinámico según la ventana
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    const fullUrl = `${protocol}//${host}${url}`;
+    // Si hay una URL de WebSocket externa configurada en Vercel
+    const envWsUrl = import.meta.env.VITE_WS_URL;
+    let fullUrl = '';
+
+    if (envWsUrl) {
+      fullUrl = `${envWsUrl}${url}`;
+    } else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      fullUrl = `${protocol}//${host}${url}`;
+    }
 
     try {
       const ws = new WebSocket(fullUrl);
