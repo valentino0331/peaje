@@ -1,3 +1,12 @@
+import os
+# Optimización de bajo consumo de memoria para Render Free Tier (512MB RAM)
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["MALLOC_ARENA_MAX"] = "2"
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,18 +18,9 @@ from app.websocket.manager import ws_manager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Pre-calentar el modelo YOLO para eliminar cold start
-    logger.info("Iniciando PIURA PASS Backend...")
-    logger.info("Pre-calentando motor de inferencia YOLOv8...")
-    try:
-        service = get_detection_service()
-        # Inferencia sintética rápida para inicializar tensores en memoria
-        import numpy as np
-        dummy_img = np.zeros((320, 320, 3), dtype=np.uint8)
-        service.detector.detect(dummy_img)
-        logger.info("Motor YOLOv8 pre-calentado exitosamente y listo para procesar tráfico en carril.")
-    except Exception as e:
-        logger.error(f"Error al pre-calentar modelo YOLO: {e}")
+    # Startup: inicio rápido y liviano para enlace inmediato de puerto en Render
+    logger.info("Iniciando PIURA PASS Backend en modo optimizado de memoria (Render 512MB)...")
+    logger.info("Motor YOLOv8 configurado en modo Lazy Loading (se activará en el primer request).")
     yield
     # Shutdown
     logger.info("Deteniendo PIURA PASS Backend...")

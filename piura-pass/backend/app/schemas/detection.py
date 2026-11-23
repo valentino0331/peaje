@@ -31,6 +31,7 @@ class VehicleDetectionItem(BaseModel):
     requires_review: bool = False
     review_reason: Optional[str] = None
     provisional_tariff: float
+    license_plate: Optional[str] = None
 
 class DetectionResponse(BaseModel):
     event_id: str
@@ -43,6 +44,7 @@ class DetectionResponse(BaseModel):
     duplicate_of_event_id: Optional[str] = None
     annotated_image_base64: Optional[str] = None
     total_vehicles_in_frame: int = 0
+    license_plate: Optional[str] = None
 
 class Base64DetectRequest(BaseModel):
     image_base64: str = Field(..., description="Base64 encoded JPEG or PNG image")
@@ -54,6 +56,7 @@ class OperatorConfirmationRequest(BaseModel):
     confirmed_category: VehicleCategory
     operator_notes: Optional[str] = None
     operator_id: Optional[str] = "OP-PIURA-01"
+    license_plate: Optional[str] = None
 
 class OperatorConfirmationResponse(BaseModel):
     event_id: str
@@ -64,6 +67,7 @@ class OperatorConfirmationResponse(BaseModel):
     updated_tariff: float
     operator_id: str
     message: str
+    license_plate: Optional[str] = None
 
 class DetectionHistoryItem(BaseModel):
     event_id: str
@@ -76,3 +80,5 @@ class DetectionHistoryItem(BaseModel):
     operator_override: bool = False
     station_id: str = "PEAJE-PIURA-CENTRO"
     lane_id: str = "CARRIL-01"
+    license_plate: Optional[str] = None
+    payment_status: Optional[str] = "PENDING"

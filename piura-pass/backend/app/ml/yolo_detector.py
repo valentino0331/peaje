@@ -1,13 +1,18 @@
+import gc
 import os
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import cv2
 import numpy as np
-from ultralytics import YOLO
+import torch
 
 from app.ml.base import AbstractVehicleDetector, RawDetection
 from app.core.logger import logger
 from app.core.config import settings
+
+# Restringir hilos de PyTorch para evitar explosión de memoria en Render (512MB RAM)
+torch.set_num_threads(1)
+torch.set_num_interop_threads(1)
 
 # Clases COCO que corresponden a vehículos
 COCO_VEHICLE_CLASSES = {
@@ -20,7 +25,8 @@ COCO_VEHICLE_CLASSES = {
 class YOLOVehicleDetector(AbstractVehicleDetector):
     """
     Implementación del detector vehicular usando Ultralytics YOLOv8.
-    Optimizado para inferencia en CPU/GPU con filtrado exclusivo de vehículos.
+    Optimizado para inferencia en CPU con Lazy Loading, bajo consumo de memoria (<250MB)
+    y filtrado exclusivo de vehículos.
     """
 
     def __init__(self, model_path: str = None):
@@ -29,22 +35,35 @@ class YOLOVehicleDetector(AbstractVehicleDetector):
             logger.warning(f"Modelo local no encontrado en {self.model_path}. Ultralytics descargará pesos base.")
             self.model_path = "yolov8n.pt"
 
-        logger.info(f"Cargando modelo YOLO desde: {self.model_path}")
-        self.model = YOLO(self.model_path)
-        logger.info("Modelo YOLO inicializado correctamente.")
+        self._model = None
+
+    @property
+    def model(self):
+        """Carga perezosa (Lazy Load) del modelo para liberar memoria durante el arranque del servidor."""
+        if self._model is None:
+            logger.info(f"Cargando modelo YOLO (lazy) desde: {self.model_path}")
+            from ultralytics import YOLO
+            self._model = YOLO(self.model_path)
+            logger.info("Modelo YOLO inicializado correctamente en memoria.")
+        return self._model
 
     def detect(self, image_np: np.ndarray, confidence_threshold: float = 0.35) -> List[RawDetection]:
         if image_np is None or image_np.size == 0:
             return []
 
-        # Inferencia con YOLOv8
-        # verbose=False para mantener logs limpios
-        results = self.model.predict(
-            source=image_np,
-            conf=confidence_threshold,
-            classes=list(COCO_VEHICLE_CLASSES.keys()),
-            verbose=False,
-        )
+        # Asegurar límite estricto de hilos CPU
+        torch.set_num_threads(1)
+
+        # Inferencia con YOLOv8 en modo inference_mode (sin gradientes ni buffers innecesarios)
+        with torch.inference_mode():
+            results = self.model.predict(
+                source=image_np,
+                conf=confidence_threshold,
+                classes=list(COCO_VEHICLE_CLASSES.keys()),
+                verbose=False,
+                imgsz=320,  # 320x320 consume 70% menos RAM que 640x640 y es veloz en CPU
+                device="cpu",
+            )
 
         detections: List[RawDetection] = []
         if not results:
@@ -77,6 +96,9 @@ class YOLOVehicleDetector(AbstractVehicleDetector):
             key=lambda d: (d.bbox_xyxy[2] - d.bbox_xyxy[0]) * (d.bbox_xyxy[3] - d.bbox_xyxy[1]),
             reverse=True,
         )
+
+        # Liberar memoria transitoria
+        gc.collect()
 
         return detections
 
